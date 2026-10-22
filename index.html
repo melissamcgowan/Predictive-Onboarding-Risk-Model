@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>body{margin:0}</style></head><body>
+<title>Onboarding Risk Model</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: triage board. Summary strip on top, ranked queue left, account drill-down right. Backtest is a second tab. */
+:root{
+  --bg:#f2f5f4; --surface:#ffffff; --ink:#14211f; --muted:#5b6b68; --line:#d6dedc;
+  --accent:#0f6b63; --accent-soft:#dcefec;
+  --high:#b3261e; --high-soft:#f7dedb; --med:#a8650a; --med-soft:#f8ead2; --low:#2c7a4b; --low-soft:#d9eee2;
+  --bar:#c9d4d1;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Spline Sans Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1a19; --surface:#172624; --ink:#e6efed; --muted:#9db0ac; --line:#2b3d3a;
+  --accent:#5fc7bb; --accent-soft:#1c3a37;
+  --high:#ff8a80; --high-soft:#3d1f1d; --med:#f0b25a; --med-soft:#3a2c14; --low:#74d39a; --low-soft:#1b3427;
+  --bar:#34484a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a19; --surface:#172624; --ink:#e6efed; --muted:#9db0ac; --line:#2b3d3a;
+  --accent:#5fc7bb; --accent-soft:#1c3a37;
+  --high:#ff8a80; --high-soft:#3d1f1d; --med:#f0b25a; --med-soft:#3a2c14; --low:#74d39a; --low-soft:#1b3427;
+  --bar:#34484a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1{font-size:26px;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:15px;margin:0;font-weight:600}
+.lede{color:var(--muted);margin:6px 0 0;max-width:68ch}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;font:inherit;font-weight:600;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.stat b{display:block;font-size:24px;font-family:var(--f-mono);font-weight:500;line-height:1.2;margin-top:2px}
+.stat small{color:var(--muted);font-size:12px}
+.main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-width:0}
+.panel-h{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 14px;font-weight:600;white-space:nowrap}
+td{padding:9px 14px;border-top:1px solid var(--line);vertical-align:middle}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg)}
+tbody tr[aria-selected="true"]{background:var(--accent-soft)}
+.acct{font-weight:600}
+.sub{color:var(--muted);font-size:12px}
+.pill{display:inline-block;font-size:11px;font-weight:600;border-radius:4px;padding:1px 7px;letter-spacing:.03em}
+.pill.High{background:var(--high-soft);color:var(--high)}
+.pill.Medium{background:var(--med-soft);color:var(--med)}
+.pill.Low{background:var(--low-soft);color:var(--low)}
+.scorecell{display:flex;align-items:center;gap:8px;min-width:110px}
+.track{flex:1;height:6px;background:var(--bar);border-radius:3px;overflow:hidden;min-width:40px}
+.fill{height:100%;border-radius:3px}
+.fill.High{background:var(--high)}.fill.Medium{background:var(--med)}.fill.Low{background:var(--low)}
+.detail{padding:14px;display:flex;flex-direction:column;gap:14px}
+.dhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.bigscore{font-family:var(--f-mono);font-size:34px;line-height:1;font-weight:500}
+.sig{display:grid;grid-template-columns:minmax(0,1fr);gap:3px}
+.sig-top{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.sig-top span:last-child{font-family:var(--f-mono);color:var(--muted);font-size:12px;text-align:right}
+.sig .track{height:8px}
+.plays{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.note{color:var(--muted);font-size:12px}
+.weights{padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 22px}
+.wrow label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px}
+.wrow input[type=range]{width:100%;accent-color:var(--accent)}
+details.panel>summary{cursor:pointer;padding:12px 14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:10px}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel[open]>summary{border-bottom:1px solid var(--line)}
+.bt{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.bt .panel{padding:14px;display:flex;flex-direction:column;gap:12px}
+.cm{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:stretch;text-align:center}
+.cm div{padding:10px 6px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
+.cm .hd{background:none;border:0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;justify-content:center}
+.cm .ok{background:var(--low-soft)}.cm .bad{background:var(--high-soft)}
+.cm b{display:block;font-size:22px;font-family:var(--f-mono);font-weight:500}
+.tier-row{display:grid;grid-template-columns:70px 1fr 90px;gap:10px;align-items:center}
+svg text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
+.foot{color:var(--muted);font-size:12px;max-width:80ch}
+[hidden]{display:none!important}
+@media (max-width:860px){.main,.bt{grid-template-columns:minmax(0,1fr)}.strip{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:22px}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Customer Success · Predictive model</div>
+    <h1>Onboarding Risk Model</h1>
+    <p class="lede">Scores each new account at its day-30 checkpoint from early usage signals, ranks the queue by risk, and tells the CSM which play to run first. All accounts and outcomes are synthetic.</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-queue" aria-selected="true" aria-controls="v-queue">Risk queue</button>
+    <button class="tab" role="tab" id="t-bt" aria-selected="false" aria-controls="v-bt">Backtest</button>
+  </div>
+
+  <details class="panel" id="weights-box">
+    <summary><span>Model settings: signal weights and tier cutoffs</span><span class="note" id="wsum"></span></summary>
+    <div class="weights" id="weights"></div>
+    <div class="weights" style="border-top:1px solid var(--line)">
+      <div class="wrow"><label for="cut-high"><span>High risk at score</span><span class="mono" id="cut-high-v"></span></label><input id="cut-high" type="range" min="40" max="85" step="1"></div>
+      <div class="wrow"><label for="cut-med"><span>Medium risk at score</span><span class="mono" id="cut-med-v"></span></label><input id="cut-med" type="range" min="15" max="60" step="1"></div>
+      <div class="wrow"><button class="chip" id="reset" type="button">Reset to defaults</button></div>
+    </div>
+  </details>
+
+  <section id="v-queue" role="tabpanel" aria-labelledby="t-queue" style="display:flex;flex-direction:column;gap:18px">
+    <div class="strip" id="strip"></div>
+    <div class="main">
+      <div class="panel">
+        <div class="panel-h">
+          <h2>Accounts reaching day 30</h2>
+          <div class="controls">
+            <span class="controls" id="seg-chips"></span>
+            <label class="sub" for="sort">Sort</label>
+            <select id="sort"><option value="score">Risk score</option><option value="arr">ARR</option><option value="name">Account</option></select>
+          </div>
+        </div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Account</th><th>Segment</th><th>ARR</th><th>Risk score</th><th>Tier</th><th>Top driver</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table></div>
+      </div>
+      <div class="panel" id="detail" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section id="v-bt" role="tabpanel" aria-labelledby="t-bt" hidden style="display:flex;flex-direction:column;gap:18px">
+    <div class="strip" id="bt-strip"></div>
+    <div class="bt">
+      <div class="panel"><h2>Score distribution by 90-day outcome</h2><div id="hist"></div><div class="note">Bars show how many past accounts landed in each score band. Dashed lines mark the current tier cutoffs.</div></div>
+      <div class="panel">
+        <h2>Flagged vs. actual outcome</h2>
+        <div class="cm" id="cm"></div>
+        <div class="note">Flagged means Medium or High. Struggled means the account missed its day-90 adoption target or opened a cancellation request.</div>
+        <h2 style="margin-top:6px">Struggle rate by tier</h2>
+        <div id="tiers" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">How it works. Every signal is compared with a segment target (Enterprise and SMB differ) and turned into a shortfall from 0 to 1. The risk score is the weighted average shortfall, scaled to 100. Change the weights above and the queue and backtest both recalculate. Replace the synthetic data layer with a CSP or product-usage export to run it on real accounts.</p>
+</div>
+
+<script id="model">
+/* ---------- Model: pure functions, no DOM ---------- */
+const SEGMENTS = {
+  Enterprise: { login: 4,   adopt: 60, seats: 60, resp: 2,   integrationRequired: true },
+  SMB:        { login: 3,   adopt: 50, seats: 80, resp: 1.5, integrationRequired: false }
+};
+const SIGNALS = [
+  { key:'usage',  label:'Login activity',          w:20 },
+  { key:'adopt',  label:'Core feature adoption',   w:15 },
+  { key:'seats',  label:'Seat activation',         w:15 },
+  { key:'integ',  label:'Integration connected',   w:15 },
+  { key:'train',  label:'Training attendance',     w:10 },
+  { key:'resp',   label:'Admin responsiveness',    w:10 },
+  { key:'supp',   label:'Support friction',        w:10 },
+  { key:'spons',  label:'Executive sponsor engaged', w:5 }
+];
+const DEFAULTS = { high:45, med:28 };
+const clamp = (x,a=0,b=1) => Math.max(a, Math.min(b, x));
+
+function shortfalls(acct){
+  const t = SEGMENTS[acct.segment], s = acct.signals;
+  return {
+    usage: clamp(1 - s.loginsPerWeek / t.login),
+    adopt: clamp(1 - s.corePct / t.adopt),
+    seats: clamp(1 - s.seatPct / t.seats),
+    integ: s.integrated ? 0 : (t.integrationRequired ? 1 : 0.5),
+    train: clamp(1 - s.trainPct / 80),
+    resp:  clamp((s.respDays - t.resp) / (t.resp * 3)),
+    supp:  clamp(s.tickets / 8 + s.highSev * 0.25),
+    spons: s.sponsor ? 0 : 1
+  };
+}
+function scoreAccount(acct, weights){
+  const sf = shortfalls(acct);
+  const total = SIGNALS.reduce((n,g)=>n+weights[g.key],0) || 1;
+  const parts = SIGNALS.map(g => ({ key:g.key, label:g.label, shortfall:sf[g.key], points: 100 * weights[g.key] * sf[g.key] / total }));
+  const score = parts.reduce((n,p)=>n+p.points,0);
+  return { score, parts };
+}
+function tierOf(score, cuts){ return score >= cuts.high ? 'High' : score >= cuts.med ? 'Medium' : 'Low'; }
+
+const PLAYS = {
+  usage:'Schedule a 20 minute usage walkthrough with the admin and two end users this week.',
+  adopt:'Run a core feature workshop. Pick the one feature tied to their stated goal and drive it to first use.',
+  seats:'Send a seat activation campaign and ask the sponsor to name a rollout lead for each team.',
+  integ:'Book a technical session to connect the integration. Offer implementation help if they are blocked.',
+  train:'Offer an on-demand recap and reschedule missed sessions at times the admin picks.',
+  resp:'Add a second contact to the thread and agree a weekly 15 minute check-in.',
+  supp:'Review open tickets with Support, close the high severity ones, and name one point of contact.',
+  spons:'Request an executive alignment call to confirm goals and success criteria.'
+};
+
+/* ---------- Synthetic data layer (swap this for a CSP or usage export) ---------- */
+function rng(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function makeData(){
+  const r = rng(20261022);
+  const pre = ['Northwind','Larkspur','Halcyon','Brightwell','Cobalt','Ferncliff','Orchard','Tidewater','Quill','Redwood','Summit','Kestrel','Marlowe','Juniper','Anvil','Beacon','Copperleaf','Driftwood','Evergreen','Foxglove','Granite','Harbor','Ironbark','Jetty','Lumen','Meridian','Nettle','Oakhurst','Pinecrest','Rivet'];
+  const suf = ['Logistics','Health','Analytics','Foods','Labs','Systems','Partners','Works','Financial','Studio','Retail','Energy'];
+  const csms = ['Priya N.','Marcus T.','Elena R.','Dev P.','Sam O.'];
+  const used = new Set();
+  const name = () => { let n; do { n = pre[Math.floor(r()*pre.length)] + ' ' + suf[Math.floor(r()*suf.length)]; } while(used.has(n)); used.add(n); return n; };
+  const gauss = () => (r()+r()+r()+r()-2)/2 ;
+  function build(i, withOutcome){
+    const segment = r() < 0.38 ? 'Enterprise' : 'SMB';
+    const t = SEGMENTS[segment];
+    const h = clamp(0.55 + gauss()*0.66);             // latent onboarding health
+    const n = () => gauss()*0.22;
+    const signals = {
+      loginsPerWeek: +Math.max(0, t.login * (0.15 + 1.15*h + n())).toFixed(1),
+      corePct:  Math.round(clamp(t.adopt/100 * (0.15 + 1.25*h + n()), 0, 1) * 100),
+      seatPct:  Math.round(clamp(t.seats/100 * (0.2 + 1.15*h + n()), 0, 1) * 100),
+      integrated: r() < clamp(h*1.1 - (segment==='Enterprise'?0.05:0.15)),
+      trainPct: Math.round(clamp(0.9*(0.1 + 1.1*h + n()), 0, 1) * 100),
+      respDays: +Math.max(0.3, t.resp * (2.1 - 1.6*h + n())).toFixed(1),
+      tickets:  Math.max(0, Math.round(5.5*(1-h) + gauss()*2)),
+      highSev:  Math.max(0, Math.round((1-h)*2.2 + gauss()*0.8)),
+      sponsor:  r() < clamp(h + 0.2)
+    };
+    const arr = Math.round((segment==='Enterprise' ? 60000 + r()*190000 : 6000 + r()*38000)/500)*500;
+    const a = { id:i, name:name(), segment, csm:csms[Math.floor(r()*csms.length)], arr, signals };
+    if (withOutcome) a.struggled = (h + gauss()*0.3) < 0.40;
+    return a;
+  }
+  const active = Array.from({length:24}, (_,i)=>build(i,false));
+  active.forEach((a,i)=>{ const d = new Date(Date.UTC(2026,9,22) - Math.floor(r()*14)*864e5); a.checkpoint = d.toISOString().slice(0,10); });
+  const past = Array.from({length:90}, (_,i)=>build(100+i,true));
+  return { active, past };
+}
+
+/* ---------- Backtest ---------- */
+function backtest(past, weights, cuts){
+  let tp=0,fp=0,fn=0,tn=0; const tiers={High:{n:0,s:0},Medium:{n:0,s:0},Low:{n:0,s:0}};
+  const bins = Array.from({length:10},()=>({struggled:0,ok:0}));
+  past.forEach(a=>{
+    const { score } = scoreAccount(a, weights); const tier = tierOf(score, cuts); const flagged = tier !== 'Low';
+    tiers[tier].n++; if(a.struggled) tiers[tier].s++;
+    if(flagged && a.struggled) tp++; else if(flagged) fp++; else if(a.struggled) fn++; else tn++;
+    bins[Math.min(9, Math.floor(score/10))][a.struggled?'struggled':'ok']++;
+  });
+  const struggledTotal = tp+fn, flaggedTotal = tp+fp;
+  return { tp,fp,fn,tn, tiers, bins,
+    precision: flaggedTotal ? tp/flaggedTotal : 0,
+    recall: struggledTotal ? tp/struggledTotal : 0,
+    base: (tp+fn+fp+tn) ? struggledTotal/(tp+fn+fp+tn) : 0 };
+}
+</script>
+
+<script>
+(function(){
+  const data = makeData();
+  const state = { weights:{}, cuts:{...DEFAULTS}, seg:'All', sort:'score', selected:null };
+  const resetWeights = () => SIGNALS.forEach(g => state.weights[g.key] = g.w);
+  resetWeights();
+  const $ = id => document.getElementById(id);
+  const money = n => '$' + (n>=1000 ? Math.round(n/1000) + 'K' : n);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  function scored(){
+    return data.active.map(a => { const s = scoreAccount(a, state.weights); return { ...a, ...s, tier: tierOf(s.score, state.cuts) }; });
+  }
+  function drivers(a){ return [...a.parts].sort((x,y)=>y.points-x.points); }
+
+  function signalText(a,key){
+    const t = SEGMENTS[a.segment], s = a.signals;
+    switch(key){
+      case 'usage': return s.loginsPerWeek + ' logins/wk per user, target ' + t.login;
+      case 'adopt': return s.corePct + '% core features, target ' + t.adopt + '%';
+      case 'seats': return s.seatPct + '% seats active, target ' + t.seats + '%';
+      case 'integ': return s.integrated ? 'Connected' : (t.integrationRequired ? 'Not connected, required' : 'Not connected, optional');
+      case 'train': return s.trainPct + '% of sessions attended, target 80%';
+      case 'resp':  return s.respDays + ' days to reply, target ' + t.resp;
+      case 'supp':  return s.tickets + ' tickets, ' + s.highSev + ' high severity';
+      case 'spons': return s.sponsor ? 'Engaged' : 'Not engaged';
+    }
+  }
+
+  function renderWeights(){
+    const box = $('weights'); box.innerHTML = '';
+    SIGNALS.forEach(g=>{
+      const d = document.createElement('div'); d.className='wrow';
+      d.innerHTML = '<label for="w-'+g.key+'"><span>'+g.label+'</span><span class="mono" id="wv-'+g.key+'">'+state.weights[g.key]+'</span></label><input id="w-'+g.key+'" type="range" min="0" max="40" step="1" value="'+state.weights[g.key]+'">';
+      d.querySelector('input').addEventListener('input', e => { state.weights[g.key] = +e.target.value; $('wv-'+g.key).textContent = e.target.value; renderAll(); });
+      box.appendChild(d);
+    });
+    $('cut-high').value = state.cuts.high; $('cut-med').value = state.cuts.med;
+  }
+
+  function renderStrip(rows){
+    const hi = rows.filter(r=>r.tier==='High'), md = rows.filter(r=>r.tier==='Medium');
+    const arrAt = [...hi,...md].reduce((n,r)=>n+r.arr,0);
+    $('strip').innerHTML =
+      stat('Accounts scored', rows.length, 'at day-30 checkpoint') +
+      stat('High risk', hi.length, money(hi.reduce((n,r)=>n+r.arr,0)) + ' ARR') +
+      stat('Medium risk', md.length, money(md.reduce((n,r)=>n+r.arr,0)) + ' ARR') +
+      stat('ARR needing a play', money(arrAt), (hi.length+md.length) + ' accounts flagged');
+  }
+  const stat = (l,v,s) => '<div class="stat"><span class="eyebrow">'+l+'</span><b>'+v+'</b><small>'+s+'</small></div>';
+
+  function renderRows(rows){
+    let list = rows.filter(r => state.seg==='All' || r.segment===state.seg);
+    list.sort((a,b)=> state.sort==='score' ? b.score-a.score : state.sort==='arr' ? b.arr-a.arr : a.name.localeCompare(b.name));
+    if(!state.selected || !list.find(r=>r.id===state.selected)) state.selected = list.length ? list[0].id : null;
+    $('rows').innerHTML = list.map(r=>{
+      const top = drivers(r)[0];
+      return '<tr tabindex="0" data-id="'+r.id+'" aria-selected="'+(r.id===state.selected)+'">' +
+        '<td><div class="acct">'+esc(r.name)+'</div><div class="sub">'+esc(r.csm)+' · day 30 on '+r.checkpoint+'</div></td>' +
+        '<td>'+r.segment+'</td><td class="mono">'+money(r.arr)+'</td>' +
+        '<td><div class="scorecell"><span class="mono">'+Math.round(r.score)+'</span><div class="track"><div class="fill '+r.tier+'" style="width:'+r.score+'%"></div></div></div></td>' +
+        '<td><span class="pill '+r.tier+'">'+r.tier+'</span></td>' +
+        '<td>'+top.label+'</td></tr>';
+    }).join('');
+    document.querySelectorAll('#rows tr').forEach(tr=>{
+      const pick = ()=>{ state.selected = +tr.dataset.id; renderRows(rows); renderDetail(rows); };
+      tr.addEventListener('click', pick);
+      tr.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pick(); } });
+    });
+  }
+
+  function renderDetail(rows){
+    const a = rows.find(r=>r.id===state.selected);
+    if(!a){ $('detail').innerHTML = '<div class="detail"><span class="note">No accounts match this filter.</span></div>'; return; }
+    const ds = drivers(a);
+    const plays = ds.filter(d=>d.points>0.5).slice(0,3);
+    $('detail').innerHTML = '<div class="detail">' +
+      '<div class="dhead"><div><div class="acct" style="font-size:17px">'+esc(a.name)+'</div><div class="sub">'+a.segment+' · '+money(a.arr)+' ARR · CSM '+esc(a.csm)+'</div></div>' +
+      '<div style="text-align:right"><div class="bigscore">'+Math.round(a.score)+'</div><span class="pill '+a.tier+'">'+a.tier+' risk</span></div></div>' +
+      '<div><div class="eyebrow" style="margin-bottom:8px">Where the risk points come from</div><div style="display:flex;flex-direction:column;gap:10px">' +
+      ds.map(d=>'<div class="sig"><div class="sig-top"><span>'+d.label+'</span><span>'+d.points.toFixed(1)+' pts</span></div>' +
+        '<div class="track"><div class="fill '+(d.shortfall>=0.6?'High':d.shortfall>=0.3?'Medium':'Low')+'" style="width:'+Math.round(d.shortfall*100)+'%"></div></div>' +
+        '<div class="note">'+esc(signalText(a,d.key))+'</div></div>').join('') + '</div></div>' +
+      '<div><div class="eyebrow" style="margin-bottom:8px">Recommended plays, in order</div>' +
+      (plays.length ? '<ol class="plays">'+plays.map(p=>'<li>'+esc(PLAYS[p.key])+'</li>').join('')+'</ol>' : '<div class="note">No signal is falling short. Keep the standard cadence.</div>') + '</div></div>';
+  }
+
+  function renderBacktest(){
+    const b = backtest(data.past, state.weights, state.cuts);
+    const pct = x => Math.round(x*100) + '%';
+    $('bt-strip').innerHTML =
+      stat('Past accounts', data.past.length, 'with known day-90 outcome') +
+      stat('Base struggle rate', pct(b.base), 'if you flag no one') +
+      stat('Precision', pct(b.precision), 'of flagged accounts struggled') +
+      stat('Recall', pct(b.recall), 'of struggling accounts caught');
+    $('cm').innerHTML =
+      '<div class="hd"></div><div class="hd">Struggled</div><div class="hd">Stabilized</div>' +
+      '<div class="hd">Flagged</div><div class="ok"><b>'+b.tp+'</b></div><div class="bad"><b>'+b.fp+'</b></div>' +
+      '<div class="hd">Not flagged</div><div class="bad"><b>'+b.fn+'</b></div><div class="ok"><b>'+b.tn+'</b></div>';
+    $('tiers').innerHTML = ['High','Medium','Low'].map(t=>{
+      const x = b.tiers[t], rate = x.n ? x.s/x.n : 0;
+      return '<div class="tier-row"><span class="pill '+t+'" style="justify-self:start">'+t+'</span><div class="track" style="height:10px"><div class="fill '+t+'" style="width:'+Math.round(rate*100)+'%"></div></div><span class="mono">'+pct(rate)+' of '+x.n+'</span></div>';
+    }).join('');
+    // histogram
+    const W=520,H=200,L=28,B=22,T=10, max = Math.max(1,...b.bins.map(x=>x.ok+x.struggled)), bw=(W-L-8)/10;
+    let svg = '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Histogram of risk scores split by outcome">';
+    const y = v => T + (H-T-B) * (1 - v/max);
+    [0,Math.ceil(max/2),max].forEach(v=>{ svg += '<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/><text x="'+(L-5)+'" y="'+(y(v)+3)+'" text-anchor="end">'+v+'</text>'; });
+    b.bins.forEach((x,i)=>{
+      const x0 = L + i*bw + 3, w = bw-6, hOk = (H-T-B)*x.ok/max, hSt = (H-T-B)*x.struggled/max;
+      svg += '<rect x="'+x0+'" y="'+(H-B-hOk)+'" width="'+w+'" height="'+hOk+'" fill="var(--low)" opacity=".75"/>';
+      svg += '<rect x="'+x0+'" y="'+(H-B-hOk-hSt)+'" width="'+w+'" height="'+hSt+'" fill="var(--high)" opacity=".9"/>';
+      svg += '<text x="'+(x0+w/2)+'" y="'+(H-6)+'" text-anchor="middle">'+(i*10)+'</text>';
+    });
+    [['med',state.cuts.med],['high',state.cuts.high]].forEach(([k,c])=>{
+      const cx = L + (c/100)*(W-L-8);
+      svg += '<line x1="'+cx+'" x2="'+cx+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--ink)" stroke-dasharray="4 3"/><text x="'+(cx+3)+'" y="'+(T+9)+'">'+k+' '+c+'</text>';
+    });
+    svg += '</svg><div class="note"><span style="color:var(--high)">&#9632;</span> Struggled &nbsp; <span style="color:var(--low)">&#9632;</span> Stabilized</div>';
+    $('hist').innerHTML = svg;
+  }
+
+  function renderSegChips(){
+    $('seg-chips').innerHTML = ['All','Enterprise','SMB'].map(s=>'<button type="button" class="chip" aria-pressed="'+(state.seg===s)+'" data-seg="'+s+'">'+s+'</button>').join('');
+    document.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click',()=>{ state.seg=b.dataset.seg; renderAll(); }));
+  }
+
+  function renderAll(){
+    const total = Object.values(state.weights).reduce((a,b)=>a+b,0);
+    $('wsum').textContent = 'Weights total ' + total + ' (scores are scaled to 100)';
+    $('cut-high-v').textContent = state.cuts.high; $('cut-med-v').textContent = state.cuts.med;
+    const rows = scored();
+    renderStrip(rows); renderSegChips(); renderRows(rows); renderDetail(rows); renderBacktest();
+  }
+
+  $('sort').addEventListener('change', e=>{ state.sort=e.target.value; renderAll(); });
+  $('cut-high').addEventListener('input', e=>{ state.cuts.high=+e.target.value; if(state.cuts.med>=state.cuts.high){ state.cuts.med=state.cuts.high-1; $('cut-med').value=state.cuts.med; } renderAll(); });
+  $('cut-med').addEventListener('input', e=>{ state.cuts.med=+e.target.value; if(state.cuts.high<=state.cuts.med){ state.cuts.high=state.cuts.med+1; $('cut-high').value=state.cuts.high; } renderAll(); });
+  $('reset').addEventListener('click', ()=>{ resetWeights(); state.cuts={...DEFAULTS}; renderWeights(); renderAll(); });
+
+  function show(tab){
+    const q = tab==='queue';
+    $('v-queue').hidden = !q; $('v-bt').hidden = q;
+    $('t-queue').setAttribute('aria-selected', q); $('t-bt').setAttribute('aria-selected', !q);
+  }
+  $('t-queue').addEventListener('click',()=>show('queue'));
+  $('t-bt').addEventListener('click',()=>show('bt'));
+
+  renderWeights(); renderAll();
+})();
+</script>
+
+</body></html>
