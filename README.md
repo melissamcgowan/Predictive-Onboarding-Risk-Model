@@ -5,6 +5,7 @@ An interactive web app that predicts which new customers are likely to struggle 
 All accounts, usage numbers, and outcomes are **synthetic**. No real customer data is included.
 
 **Open `index.html` in any browser. No build step and no dependencies.**
+Live Demo: https://melissamcgowan.github.io/Predictive-Onboarding-Risk-Model/
 
 ## The problem
 
